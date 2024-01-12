@@ -4,12 +4,21 @@
 import fetch from 'node-fetch';
 import { XMLParser } from 'fast-xml-parser';
 import { decode } from 'html-entities';
+import { SpotifyApi } from '@spotify/web-api-ts-sdk';
 
 const rssUrl = 'https://data.bff.fm/shows/audiosyncrasies.rss';
-const playlistUrl = 'https://open.spotify.com/playlist/5MpC0JxMZJ7bIJPwPFCtNv?si=01c3489b886e45fe';
-const spotifyAppId = 'a63602813cf94b709962b84a9c9da8ad';
+const playlistId = '5MpC0JxMZJ7bIJPwPFCtNv?si=01c3489b886e45fe';
+
+const spotifyClientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+const spotifyClientId = process.env.SPOTIFY_CLIENT_ID;
+const spotifyRefreshToken = process.env.SPOTIFY_REFRESH_TOKEN;
 
 console.log('Starting to sync Audiosyncrasies');
+
+console.log('Found Spotify creds', spotifyClientId, spotifyClientSecret, spotifyRefreshToken);
+
+SpotifyApi.
+
 
 const response = await fetch(rssUrl);
 const xml = await response.text();
