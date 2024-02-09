@@ -1,5 +1,6 @@
 // find stuff played on audiosyncrasies and add the tracks to a spotify playlist
-// https://bff.fm/broadcasts/40216
+// the radio show: https://bff.fm/broadcasts/40216
+// the playlist url: https://open.spotify.com/playlist/5MpC0JxMZJ7bIJPwPFCtNv 
 
 import { XMLParser } from 'fast-xml-parser';
 import { decode } from 'html-entities';
@@ -7,46 +8,97 @@ import { SpotifyApi } from '@spotify/web-api-ts-sdk';
 
 console.log('Loading');
 
-const rssUrl = 'https://data.bff.fm/shows/audiosyncrasies.rss';
-const playlistId = '5MpC0JxMZJ7bIJPwPFCtNv'; //https://open.spotify.com/playlist/5MpC0JxMZJ7bIJPwPFCtNv
-const currentUrl = 'http://localhost:4545';
+const playlistId = '5MpC0JxMZJ7bIJPwPFCtNv';
 const spotifyClientId = import.meta.env.VITE_SPOTIFY_CLIENT_ID;
 
 let sdk = undefined;
-let tracks = [];
+let tracksToFind = [];
+let playlistSongs = [];
+let baseDelay = 10000;
+
 const startButton = document.getElementById("start");
 const processButton = document.getElementById("process");
 const searchButton = document.getElementById("search");
 
 startButton.addEventListener('click', doUserAuth);
 processButton.addEventListener('click', processEpisodes);
-searchButton.addEventListener('click', findTracks);
+searchButton.addEventListener('click', handleFindTracksClick);
 
-function timeout(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-console.log('setup done', currentUrl, spotifyClientId);
+console.log('Setup done.');
 
 async function doUserAuth() {
   console.log('Authing with Spotify');
 
-  sdk = SpotifyApi.withUserAuthorization(spotifyClientId, currentUrl, ["playlist-read-private", "playlist-modify-private", "playlist-modify-public"]);
+  const currentUrl = window.location.origin;
+  console.log('currentUrl', currentUrl);
+  sdk = SpotifyApi.withUserAuthorization(
+    spotifyClientId,
+    currentUrl,
+    [
+      "playlist-read-private",
+      "playlist-modify-private",
+      "playlist-modify-public"
+    ]
+  );
 
   const profile = await sdk.currentUser.profile();
   console.log(profile);
+
+  await fetchPlaylistSongs();
 }
 
-async function findTracks() {
-  console.log('finding all tracks');
-  console.log(tracks);
+async function fetchPlaylistSongs() {
+  if (sdk === undefined) {
+    console.error("SDK isn't setup. Can't fetch playlist songs.");
+    return;
+  };
 
-  await findTrack(tracks[0]);
+  console.log('fetching playlist songs');
 
-  // tracks.forEach(async track => {
-  //   await findTrack(track);
-  //   await timeout(4000);
-  // });
+  try {
+    const results = await sdk.playlists.getPlaylistItems(playlistId);
+    playlistSongs = results.items.map(item => item.track.id)
+    console.log("Set playlist songs.", playlistSongs);
+	} catch {
+    console.error("Failed to fetch playlist items.")
+	}
+}
+
+async function handleFindTracksClick() {
+  console.log("Finding tracks...");
+  findTracks(tracksToFind);
+}
+
+async function findTracks(tracks) {
+  if (tracks === undefined || tracks.length == 0) {
+    console.log("Finished. No more tracks to process.");
+    return;
+  }
+
+  console.log(`Found ${tracks.length} to process.`);
+
+  const [currentTrack, ...restOfTracks] = tracks;
+
+  const result = await findTrack(currentTrack);
+    
+  if (result === "no-match") {
+    console.log("Couldn't find a match for song.");
+    findTracks(restOfTracks);
+  } else if (result === "skipped") {
+    console.log("Skipped song.");
+    findTracks(restOfTracks);
+  } else if (result === "rate-limited") {
+    console.log("Rate limited. Waiting.");
+    setTimeout(() => findTracks(tracks), baseDelay);
+  } else if (result === "success") {
+    console.log("Saved track.");
+    findTracks(restOfTracks);
+  } else if (result === "error") {
+    console.log("Got error processing track.");
+    findTracks(restOfTracks);
+  } else {
+    console.log("Got an unknown result.", result);
+  }
 }
 
 async function findTrack({ artist, title }) {
@@ -56,26 +108,27 @@ async function findTrack({ artist, title }) {
   }
 
   const searchTerm = `${artist} - ${title}`;
-  console.log(`Searching Spotify for ${searchTerm}`);
+  console.log(`Searching Spotify for "${searchTerm}"`);
   const results = await sdk.search(searchTerm, ["track"]);
   const candidate = results?.tracks?.items[0];
 
-  // debugger
-
-  if (candidate) {
-    console.log('Found possible result', candidate);
-  } else {
-    console.log(`Could not find a track that matched: ${searchTerm}`);
+  if (!candidate) {
+    return "no-match";
   }
 
-  const trackUri = candidate.uri;
-  console.log('Adding track to playlist', playlistId, [trackUri], 0);
+  const { id, artists, album: { name: albumName }, href, uri } = candidate;
+  console.log("Found song.", id, artists.map(a => a.name).join(", "), albumName, href);
+
+  if (playlistSongs.includes(id)) {
+    return "skipped";
+  }
 
   try {
-    await sdk.playlists.addItemsToPlaylist(playlistId, [trackUri], 0);
+    await sdk.playlists.addItemsToPlaylist(playlistId, [uri], 0);
+    return "success";
   } catch(e) {
-    console.log('Unable to add track to playlist');
     console.error(e);
+    return "error";
   }
 }
 
@@ -111,7 +164,7 @@ async function processEpisodes() {
       const track = { artist, title };
       console.log(`Found song in feed: ${artist}: ${title}`);
 
-      tracks.push(track);
+      tracksToFind.push(track);
     });
   });
 
