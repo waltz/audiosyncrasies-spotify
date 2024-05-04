@@ -47,7 +47,7 @@ async function doUserAuth() {
   await fetchPlaylistSongs();
 }
 
-async function fetchPlaylistSongs() {
+async function fetchPlaylistSongs(offset) {
   if (sdk === undefined) {
     console.error("SDK isn't setup. Can't fetch playlist songs.");
     return;
@@ -56,11 +56,20 @@ async function fetchPlaylistSongs() {
   console.log('fetching playlist songs');
 
   try {
-    const results = await sdk.playlists.getPlaylistItems(playlistId);
-    playlistSongs = results.items.map(item => item.track.id)
-    console.log("Set playlist songs.", playlistSongs);
-	} catch {
-    console.error("Failed to fetch playlist items.")
+    const limit = 50;
+    offset = offset || playlistSongs.length;
+    console.log('current page:', limit, offset);
+    const results = await sdk.playlists.getPlaylistItems(playlistId, "", "", limit, offset);
+    const resultIds = results.items.map(item => item.track.id)
+    resultIds.forEach(songId => playlistSongs.push(songId));
+    console.log(`Fetched ${resultIds.length} songs, playlist now has ${playlistSongs.length} songs.`);
+
+    if (resultIds.length === limit) {
+      console.log('Fetching more playlist songs.');
+      setTimeout(() => fetchPlaylistSongs(offset + limit), baseDelay);
+    }
+	} catch (e) {
+    console.error("Failed to fetch playlist items.", e);
 	}
 }
 
