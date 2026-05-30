@@ -1,5 +1,5 @@
 name = "audiosyncrasies-spotify"
-main = "worker/index.js"
+main = "src/worker.js"
 compatibility_date = "2024-01-01"
 
 # Cron trigger - runs at 2am UTC daily (matching the Lambda schedule)
