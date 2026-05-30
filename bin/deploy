@@ -1,0 +1,44 @@
+#!/bin/bash
+set -e
+
+echo "🚀 Deploying Audiosyncrasies Spotify Worker to Cloudflare..."
+
+# Check if .env exists
+if [ ! -f .env ]; then
+  echo "❌ Error: .env file not found"
+  echo "   Run: cp .env.example .env"
+  echo "   Then edit .env with your credentials"
+  exit 1
+fi
+
+# Load environment variables
+source .env
+
+# Verify required variables
+if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$SPOTIFY_CLIENT_ID" ] || [ -z "$SPOTIFY_CLIENT_SECRET" ] || [ -z "$SPOTIFY_REFRESH_TOKEN" ]; then
+  echo "❌ Error: Missing required environment variables in .env"
+  echo "   Required: CLOUDFLARE_API_TOKEN, SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, SPOTIFY_REFRESH_TOKEN"
+  exit 1
+fi
+
+# Install dependencies if needed
+if [ ! -d "node_modules" ]; then
+  echo "📦 Installing dependencies..."
+  npm install
+fi
+
+# Deploy worker
+echo "📤 Deploying worker..."
+npx wrangler deploy
+
+# Set secrets
+echo "🔐 Setting secrets..."
+echo "$SPOTIFY_CLIENT_ID" | npx wrangler secret put SPOTIFY_CLIENT_ID
+echo "$SPOTIFY_CLIENT_SECRET" | npx wrangler secret put SPOTIFY_CLIENT_SECRET
+echo "$SPOTIFY_REFRESH_TOKEN" | npx wrangler secret put SPOTIFY_REFRESH_TOKEN
+
+echo "✅ Deployment complete!"
+echo ""
+echo "Test your worker:"
+echo "  npx wrangler tail  # View logs"
+echo "  curl https://audiosyncrasies-spotify.<your-subdomain>.workers.dev"

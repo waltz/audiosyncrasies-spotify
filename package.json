@@ -4,7 +4,10 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "start": "vite"
+    "start": "vite",
+    "deploy": "wrangler deploy",
+    "dev:worker": "wrangler dev",
+    "tail": "wrangler tail"
   },
   "author": "cj@cjbryan.io",
   "dependencies": {
@@ -13,6 +16,7 @@
     "html-entities": "^2.4.0"
   },
   "devDependencies": {
-    "vite": "^5.0.11"
+    "vite": "^5.0.11",
+    "wrangler": "^3.0.0"
   }
 }
