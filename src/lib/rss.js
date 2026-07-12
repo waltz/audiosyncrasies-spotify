@@ -1,7 +1,7 @@
 import { XMLParser } from "fast-xml-parser";
 import { decode } from "html-entities";
 
-const RSS_URL = "https://bff.fm/feed/shows/audiosyncrasies.rss";
+const RSS_URL = "https://data.bff.fm/shows/audiosyncrasies.rss";
 
 export async function fetchAndParseFeed(url = RSS_URL) {
   const response = await fetch(url);

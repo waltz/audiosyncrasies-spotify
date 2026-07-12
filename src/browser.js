@@ -14,12 +14,18 @@ let baseDelay = 10000;
 const startButton = document.getElementById("start");
 const processButton = document.getElementById("process");
 const searchButton = document.getElementById("search");
+const refreshTokenInput = document.getElementById("refresh_token");
 
 startButton.addEventListener("click", doUserAuth);
 processButton.addEventListener("click", processEpisodes);
 searchButton.addEventListener("click", handleFindTracksClick);
 
 console.log("Setup done.");
+
+if (new URLSearchParams(window.location.search).has("code")) {
+  console.log("Returned from Spotify redirect, resuming auth flow.");
+  doUserAuth();
+}
 
 async function doUserAuth() {
   console.log("Authing with Spotify");
@@ -34,6 +40,9 @@ async function doUserAuth() {
 
   const profile = await sdk.currentUser.profile();
   console.log(profile);
+
+  const token = await sdk.getAccessToken();
+  refreshTokenInput.value = token?.refresh_token ?? "";
 
   await fetchPlaylistSongs();
 }
