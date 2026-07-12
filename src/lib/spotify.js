@@ -107,5 +107,13 @@ export async function getAccessTokenFromRefreshToken(
     );
   }
 
-  return (await response.json()).access_token;
+  const data = await response.json();
+
+  if (data.refresh_token) {
+    console.warn(
+      "Spotify issued a new refresh token. The stored SPOTIFY_REFRESH_TOKEN secret is now stale and needs to be updated, or the next sync will fail."
+    );
+  }
+
+  return data.access_token;
 }

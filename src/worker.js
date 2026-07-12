@@ -3,13 +3,13 @@ import { getAccessTokenFromRefreshToken } from "./lib/spotify.js";
 import { syncTracksToPlaylist } from "./lib/sync.js";
 
 async function runSync(env) {
-  const playlistId = env.PLAYLIST_ID || "5MpC0JxMZJ7bIJPwPFCtNv";
+  const playlistId = env.PLAYLIST_ID;
 
   console.log("Fetching access token...");
   const accessToken = await getAccessTokenFromRefreshToken(
     env.SPOTIFY_CLIENT_ID,
     env.SPOTIFY_CLIENT_SECRET,
-    env.SPOTIFY_REFRESH_TOKEN
+    env.SPOTIFY_REFRESH_TOKEN,
   );
 
   console.log("Fetching RSS feed...");
@@ -25,7 +25,7 @@ export default {
   async scheduled(event, env, ctx) {
     console.log(
       "Scheduled trigger at:",
-      new Date(event.scheduledTime).toISOString()
+      new Date(event.scheduledTime).toISOString(),
     );
     try {
       const stats = await runSync(env);
@@ -51,7 +51,7 @@ export default {
         {
           status: 500,
           headers: { "Content-Type": "application/json" },
-        }
+        },
       );
     }
   },
