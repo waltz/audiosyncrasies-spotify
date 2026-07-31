@@ -2,6 +2,11 @@ name = "audiosyncrasies-spotify"
 main = "src/worker.js"
 compatibility_date = "2024-01-01"
 
+# No public workers.dev URL or custom routes: fetch() is only reachable via
+# `wrangler dev --remote` locally. scheduled() is unaffected - cron triggers
+# don't go through HTTP routing.
+workers_dev = false
+
 # Cron trigger - runs at 9am UTC daily (~2am Pacific; drifts to 1am during PST)
 [triggers]
 crons = ["0 9 * * *"]
@@ -9,6 +14,14 @@ crons = ["0 9 * * *"]
 # Environment variables (non-sensitive)
 [vars]
 PLAYLIST_ID = "5MpC0JxMZJ7bIJPwPFCtNv"
+
+# KV namespace for tracking which feed tracks have already been processed
+# (added or confirmed not-found), keyed by normalized artist/title. Run
+# `npx wrangler kv namespace create PROCESSED_TRACKS` and replace the id
+# below with the one it prints.
+[[kv_namespaces]]
+binding = "PROCESSED_TRACKS"
+id = "aae40e452119445c8e846f7d26803553"
 
 # Secrets (set these with `npx wrangler secret put` or via Ansible):
 # - SPOTIFY_CLIENT_ID

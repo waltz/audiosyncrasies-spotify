@@ -2,9 +2,9 @@ async function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export async function getPlaylistTracks(accessToken, playlistId) {
-  const ids = [];
-  let url = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?fields=next,items(track(id))&limit=50`;
+export async function getPlaylistTracksDetailed(accessToken, playlistId) {
+  const tracks = [];
+  let url = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?fields=next,items(track(id,uri,name,artists(name)))&limit=50`;
 
   while (url) {
     const response = await fetch(url, {
@@ -17,12 +17,54 @@ export async function getPlaylistTracks(accessToken, playlistId) {
 
     const data = await response.json();
     for (const item of data.items) {
-      if (item.track?.id) ids.push(item.track.id);
+      if (!item.track?.id) continue;
+      tracks.push({
+        id: item.track.id,
+        uri: item.track.uri,
+        name: item.track.name,
+        artist: item.track.artists?.[0]?.name ?? "",
+      });
     }
     url = data.next;
   }
 
-  return ids;
+  return tracks;
+}
+
+export async function removeTracksFromPlaylist(accessToken, uris, playlistId) {
+  // Spotify caps removals at 100 items per request.
+  for (let i = 0; i < uris.length; i += 100) {
+    const batch = uris.slice(i, i + 100);
+
+    while (true) {
+      const response = await fetch(
+        `https://api.spotify.com/v1/playlists/${playlistId}/tracks`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ tracks: batch.map((uri) => ({ uri })) }),
+        }
+      );
+
+      if (response.status === 429) {
+        const wait = parseInt(response.headers.get("Retry-After") || "5", 10);
+        console.log(`Rate limited on remove. Retrying in ${wait}s`);
+        await sleep(wait * 1000);
+        continue;
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          `Failed to remove tracks: ${response.status} ${await response.text()}`
+        );
+      }
+
+      break;
+    }
+  }
 }
 
 export async function searchTrack(accessToken, { artist, title }) {

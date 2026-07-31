@@ -16,7 +16,12 @@ async function runSync(env) {
   const tracks = await fetchAndParseFeed();
 
   console.log("Syncing tracks to playlist...");
-  const stats = await syncTracksToPlaylist(accessToken, tracks, playlistId);
+  const stats = await syncTracksToPlaylist(
+    accessToken,
+    tracks,
+    playlistId,
+    env.PROCESSED_TRACKS,
+  );
 
   return stats;
 }
@@ -37,8 +42,6 @@ export default {
   },
 
   async fetch(request, env, ctx) {
-    console.log("Manual HTTP trigger");
-
     try {
       const stats = await runSync(env);
       return new Response(JSON.stringify({ success: true, stats }, null, 2), {
