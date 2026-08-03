@@ -11,6 +11,12 @@ workers_dev = false
 [triggers]
 crons = ["0 9 * * *"]
 
+# Persists logs/traces to the dashboard so past scheduled() runs are
+# queryable, not just live-tailable. Low volume (one cron firing/day plus
+# occasional manual triggers), so full sampling is fine.
+[observability]
+enabled = true
+
 # Environment variables (non-sensitive)
 [vars]
 PLAYLIST_ID = "5MpC0JxMZJ7bIJPwPFCtNv"
@@ -22,6 +28,12 @@ PLAYLIST_ID = "5MpC0JxMZJ7bIJPwPFCtNv"
 [[kv_namespaces]]
 binding = "PROCESSED_TRACKS"
 id = "aae40e452119445c8e846f7d26803553"
+
+# Per-run metrics (success/error, tracks added, duration) - queryable via
+# the SQL API or dashboard, separate from Workers Logs' free-text logging.
+[[analytics_engine_datasets]]
+binding = "ANALYTICS_ENGINE"
+dataset = "audiosyncrasies-spotify"
 
 # Secrets (set these with `npx wrangler secret put` or via Ansible):
 # - SPOTIFY_CLIENT_ID

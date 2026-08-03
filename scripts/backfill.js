@@ -6,11 +6,11 @@
 // Usage:
 //   node --env-file=.dev.vars scripts/backfill.js
 
-import { writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { execFileSync } from "node:child_process";
 import { getAccessTokenFromRefreshToken } from "../src/lib/spotify.js";
 import { removeDuplicateTracks } from "../src/lib/dedupe.js";
+import { fetchAndParseFeed } from "../src/lib/rss.js";
+import { seedKv } from "./lib/seed-kv.js";
 
 const {
   SPOTIFY_CLIENT_ID,
@@ -32,38 +32,21 @@ const accessToken = await getAccessTokenFromRefreshToken(
   SPOTIFY_REFRESH_TOKEN
 );
 
-const result = await removeDuplicateTracks(accessToken, PLAYLIST_ID);
+console.log("Fetching RSS feed...");
+const tracks = await fetchAndParseFeed();
+
+const result = await removeDuplicateTracks(accessToken, PLAYLIST_ID, tracks);
 
 console.log("\nSummary:");
-console.log(`  Playlist tracks scanned: ${result.tracksScanned}`);
+console.log(`  Playlist tracks scanned: ${result.playlistTracksScanned}`);
 console.log(`  Duplicates removed:      ${result.duplicatesRemoved}`);
-console.log(`  Feed tracks scanned:     ${result.feedTracksScanned}`);
+console.log(`  Feed tracks scanned:     ${result.tracksScanned}`);
 console.log(`  Matched to playlist:     ${result.matched}`);
 console.log(`  Not found on Spotify:    ${result.notFound}`);
 
 const outFile = fileURLToPath(
   new URL("../.backfill-kv-records.json", import.meta.url)
 );
-const bulkPayload = [...result.records].map(([key, value]) => ({
-  key,
-  value,
-}));
-await writeFile(outFile, JSON.stringify(bulkPayload, null, 2));
-console.log(`\nWrote ${bulkPayload.length} records to .backfill-kv-records.json`);
-
-console.log("\nSeeding KV...");
-execFileSync(
-  "npx",
-  [
-    "wrangler",
-    "kv",
-    "bulk",
-    "put",
-    outFile,
-    "--binding=PROCESSED_TRACKS",
-    "--remote",
-  ],
-  { stdio: "inherit" }
-);
+await seedKv(result.records, outFile);
 
 console.log("\nDone. KV is seeded - the daily sync should run within budget now.");

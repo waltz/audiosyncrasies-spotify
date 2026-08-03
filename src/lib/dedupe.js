@@ -1,30 +1,39 @@
 import {
   getPlaylistTracksDetailed,
   removeTracksFromPlaylist,
+  addTrackToPlaylist,
   searchTrack,
 } from "./spotify.js";
-import { fetchAndParseFeed } from "./rss.js";
 import { normalizeTrackKey } from "./normalize.js";
 
 async function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// Not tied to a Worker or a particular storage binding - runs a full pass
-// over the live playlist and feed, and returns the records to persist
-// (rather than writing them itself) so it can run outside the Workers
-// runtime, unconstrained by the per-invocation subrequest limit.
+// Not tied to a Worker, a particular storage binding, or a particular
+// track source - runs a full pass over the live playlist and the given
+// tracks, and returns the records to persist (rather than writing them
+// itself) so it can run outside the Workers runtime, unconstrained by the
+// per-invocation subrequest limit.
+//
+// By default, tracks found on Spotify but not currently in the playlist
+// are left unrecorded rather than added - appropriate when `tracks` is the
+// RSS feed's rolling window, since the next daily sync will pick them up
+// naturally. Pass `addMissingTracks: true` when that's not true of the
+// track source (e.g. a one-time historical archive crawl the daily sync
+// will never see again), so this pass is the only chance to add them.
 export async function removeDuplicateTracks(
   accessToken,
   playlistId,
-  { delayBetweenSearches = 200 } = {}
+  tracks,
+  { delayBetweenSearches = 200, addMissingTracks = false } = {}
 ) {
   console.log("Fetching playlist tracks for dedup...");
-  const tracks = await getPlaylistTracksDetailed(accessToken, playlistId);
-  console.log(`Playlist has ${tracks.length} tracks`);
+  const playlistTracks = await getPlaylistTracksDetailed(accessToken, playlistId);
+  console.log(`Playlist has ${playlistTracks.length} tracks`);
 
   const groups = new Map();
-  for (const track of tracks) {
+  for (const track of playlistTracks) {
     const key = normalizeTrackKey(track.artist, track.name);
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(track);
@@ -47,19 +56,19 @@ export async function removeDuplicateTracks(
     console.log("No duplicates found.");
   }
 
-  console.log("Matching feed tracks against the playlist...");
-  const feedTracks = await fetchAndParseFeed();
+  console.log(`Matching ${tracks.length} tracks against the playlist...`);
   const records = new Map();
   let matched = 0;
+  let added = 0;
   let notFound = 0;
 
-  for (const feedTrack of feedTracks) {
-    const feedKey = normalizeTrackKey(feedTrack.artist, feedTrack.title);
+  for (const track of tracks) {
+    const key = normalizeTrackKey(track.artist, track.title);
 
-    const result = await searchTrack(accessToken, feedTrack);
+    const result = await searchTrack(accessToken, track);
 
     if (!result) {
-      records.set(feedKey, JSON.stringify({ status: "not-found" }));
+      records.set(key, JSON.stringify({ status: "not-found" }));
       notFound++;
       await sleep(delayBetweenSearches);
       continue;
@@ -67,28 +76,36 @@ export async function removeDuplicateTracks(
 
     if (keptIds.has(result.id)) {
       records.set(
-        feedKey,
+        key,
         JSON.stringify({ status: "added", spotifyId: result.id })
       );
       matched++;
-    } else {
-      console.log(
-        `Feed track not yet in playlist: ${feedTrack.artist} - ${feedTrack.title}`
+    } else if (addMissingTracks) {
+      await addTrackToPlaylist(accessToken, result.uri, playlistId);
+      keptIds.add(result.id);
+      records.set(
+        key,
+        JSON.stringify({ status: "added", spotifyId: result.id })
       );
+      added++;
+      console.log(`Added: ${track.artist} - ${track.title}`);
+    } else {
+      console.log(`Not yet in playlist: ${track.artist} - ${track.title}`);
     }
 
     await sleep(delayBetweenSearches);
   }
 
   console.log(
-    `Matched ${matched} feed tracks to playlist entries. ${notFound} confirmed not on Spotify.`
+    `Matched ${matched} existing, added ${added} new, ${notFound} not found on Spotify.`
   );
 
   return {
-    tracksScanned: tracks.length,
+    playlistTracksScanned: playlistTracks.length,
     duplicatesRemoved: toRemove.length,
-    feedTracksScanned: feedTracks.length,
+    tracksScanned: tracks.length,
     matched,
+    added,
     notFound,
     records,
   };

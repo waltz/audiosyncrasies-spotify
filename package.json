@@ -8,7 +8,8 @@
     "deploy": "wrangler deploy",
     "dev:worker": "wrangler dev",
     "tail": "wrangler tail",
-    "backfill": "node --env-file=.dev.vars scripts/backfill.js"
+    "backfill": "node --env-file=.dev.vars scripts/backfill.js",
+    "archive-sync": "node --env-file=.dev.vars scripts/archive-sync.js"
   },
   "author": "cj@cjbryan.io",
   "dependencies": {
